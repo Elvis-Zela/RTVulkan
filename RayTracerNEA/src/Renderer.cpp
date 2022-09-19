@@ -12,6 +12,9 @@ void Renderer::Render(const Camera& camera)
 	{
 		for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++)
 		{
+			/* ERROR: Exception Thrown: Read Access Violation */
+			/* -- Cause: GetRayDirections() -- */
+			/* - Problem caused by Render() in RTApp.cpp - */
 			ray.Direction = camera.GetRayDirections()[x + y * m_FinalImage->GetWidth()];
 			glm::vec4 color = TraceRay(ray);
 			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));
@@ -43,6 +46,8 @@ void Renderer::Resizing(uint32_t width, uint32_t height)
 	m_ImageDataBuffer = new uint32_t[width * height];
 }
 
+/* - Trace Ray Not Finished - */
+/* - Displaying simple sphere - */
 glm::vec4 Renderer::TraceRay(const Ray& ray)
 {
 	float radius = 0.5f;
