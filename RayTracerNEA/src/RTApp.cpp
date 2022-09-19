@@ -54,6 +54,10 @@ public:
 		Timer timer;
 
 		m_Renderer.Resizing(m_ViewportWidth, m_ViewportHeight);
+		
+		/* - Exception Fixed: Calling Resizing() for the camera in the app render call - */
+		m_Camera.Resizing(m_ViewportWidth, m_ViewportHeight);
+		
 		m_Renderer.Render(m_Camera);
 
 		m_LastRenderTime = timer.ElapsedMillis();
