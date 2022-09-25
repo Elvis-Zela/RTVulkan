@@ -6,18 +6,28 @@
 
 #include "Walnut/Input/Input.h"
 
+#define CAMERA_ROTATION_SPEED		0.3f
+
 using namespace Walnut;
 
 /* - Camera Constructor - */
-Camera::Camera(float vFOV, float near, float far)
-	: m_vFOV(vFOV), m_Near(near), m_Far(far)
+Camera::Camera() 
 {
-	m_Direction = glm::vec3(0, 0, -1);
-	m_Position = glm::vec3(0, 0, 3);
+	m_CameraPosition = { 0.0f, 0.5f, 8.0f };
 }
 
+Camera::Camera(glm::vec3 pos, glm::vec3 lookat)
+{
+	m_CameraPosition = pos;
+	m_ForwardDirection = lookat;
+}
+
+Camera::~Camera()
+{}
+
 /* - In case viewport window has been resized - */
-void Camera::Resizing(uint32_t width, uint32_t height)
+/* - Also used at start up to initialise attributes - */
+void Camera::IfResizing(uint32_t width, uint32_t height)
 {
 	if (width == m_ViewportWidth && height == m_ViewportHeight)
 		return;
@@ -29,12 +39,6 @@ void Camera::Resizing(uint32_t width, uint32_t height)
 	RecalculateRayDirections();
 }
 
-/* - Allow for user defined sensitivity - */
-float Camera::GetRotationSpeed()
-{
-	return 0.3f;
-}
-
 void Camera::RecalculateProjectionM()
 {
 	m_ProjectionM = glm::perspectiveFov(glm::radians(m_vFOV), (float)m_ViewportWidth, (float)m_ViewportHeight, m_Near, m_Far);
@@ -44,12 +48,13 @@ void Camera::RecalculateProjectionM()
 void Camera::RecalculateViewM()
 {
 	/* - Camera Origin, Point Position, Up vector - */
-	m_ViewM = glm::lookAt(m_Position, m_Position + m_Direction, glm::vec3(0, 1, 1));
+	m_ViewM = glm::lookAt(m_CameraPosition, m_CameraPosition + m_ForwardDirection, WORLD_UP_DIRECTION);
 	m_InverseViewM = glm::inverse(m_ViewM);
 }
 
 void Camera::RecalculateRayDirections()
 {
+	/* - Allocates enough space in the vector for all rays in the iamge - */
 	m_RayDirections.resize(m_ViewportWidth * m_ViewportHeight);
 
 	for (uint32_t y = 0; y < m_ViewportHeight; y++)
@@ -64,7 +69,13 @@ void Camera::RecalculateRayDirections()
 			/* - Projective Space coordinates (x, y, z, w) - */
 			glm::vec4 target = m_InverseProjectionM * glm::vec4(coord.x, coord.y, 1, 1);
 			/* - mapping from projective space to world coordinates (x, y, z) - */
-			glm::vec3 rayDirection = glm::vec3(m_InverseViewM * glm::vec4(glm::normalize(glm::vec3(target) / target.w), 0));
+			glm::vec3 rayDirection;
+
+			if(target.w == 0)
+				rayDirection = glm::vec3(m_InverseViewM * glm::normalize(target));
+			else
+				rayDirection = glm::vec3(m_InverseViewM * glm::vec4(glm::normalize(glm::vec3(target) / target.w), 0));
+
 			m_RayDirections[x + y * m_ViewportWidth] = rayDirection;
 		}
 	}
@@ -74,8 +85,9 @@ void Camera::Update(float ts)
 {
 	glm::vec2 mousePos = Input::GetMousePosition();
 	/* - amount that the mouse has moved from previous pos - */
-	glm::vec2 delta = (mousePos - m_LastMousePosition) * 0.002f;
+	glm::vec2 displacement = (mousePos - m_LastMousePosition) * MouseSensitivity * 0.01f; // sens dampening
 	m_LastMousePosition = mousePos;
+
 
 	if (!Input::IsMouseButtonDown(MouseButton::Right))
 	{
@@ -87,64 +99,60 @@ void Camera::Update(float ts)
 	Input::SetCursorMode(CursorMode::Locked);
 
 	bool moved = false;
-
-	constexpr glm::vec3 upDirection(0.0f, 1.0f, 0.0f);
-	/* - Camera vector pointing right - */
-	glm::vec3 rightDirection = glm::cross(m_Direction, upDirection);
-
-	float speed = 5.0f;
+	m_RightDirection = glm::cross(m_ForwardDirection, m_UpDirection);
 
 	/* - Forward and Back movement - */
 	if (Input::IsKeyDown(KeyCode::W))
 	{
 		/* - Incrementing current Pos with camera direction and constants*/
-		m_Position += m_Direction * speed * ts;
+		m_CameraPosition += m_ForwardDirection * CameraFlySpeed * ts;
 		moved = true;
 	}
 	else if (Input::IsKeyDown(KeyCode::S))
 	{
-		m_Position -= m_Direction * speed * ts;
-		moved = true;
+			m_CameraPosition -= m_ForwardDirection * CameraFlySpeed * ts;
+			moved = true;
 	}
 	/* - Left and Right Movement - */
 	if (Input::IsKeyDown(KeyCode::A))
 	{
-		m_Position -= rightDirection * speed * ts;
+		m_CameraPosition -= m_RightDirection * CameraFlySpeed * ts;
 		moved = true;
 	}
 	else if (Input::IsKeyDown(KeyCode::D))
 	{
-		m_Position += rightDirection * speed * ts;
+		m_CameraPosition += m_RightDirection * CameraFlySpeed * ts;
 		moved = true;
 	}
 	/* - Up and Down Movement - */
 	if (Input::IsKeyDown(KeyCode::Space))
 	{
-		m_Position += upDirection * speed * ts;
+		m_CameraPosition += m_UpDirection * CameraFlySpeed * ts;
 		moved = true;
 	}
 	else if (Input::IsKeyDown(KeyCode::LeftShift))
 	{
-		m_Position -= upDirection * speed * ts;
+		m_CameraPosition -= m_UpDirection * CameraFlySpeed * ts;
 		moved = true;
 	}
 
 	/* - Camera rotations with mouse - */
-	if (delta.x != 0.0f || delta.y != 0.0f)
+	if (displacement.x != 0.0f || displacement.y != 0.0f)
 	{
-		float pitch = delta.y * GetRotationSpeed();
-		float yaw	= delta.x * GetRotationSpeed();
+		float pitch 	= displacement.y * CAMERA_ROTATION_SPEED;
+		float yaw	= displacement.x * CAMERA_ROTATION_SPEED;
 
 		/* - rotation quaternion - */
-		glm::quat q = glm::normalize(glm::cross(glm::angleAxis(-pitch, rightDirection),
-			glm::angleAxis(-yaw, glm::vec3(0.0f, 1.0f, 0.0f))));
+		/* - normalised quaternion with combined rotation, pitch and yaw - */
+		glm::quat q = glm::normalize(glm::cross(glm::angleAxis(-pitch, m_RightDirection),
+			glm::angleAxis(-yaw, WORLD_UP_DIRECTION)));
 		/* - new forward direction = old direction * quaternion - */
-		m_Direction = glm::rotate(q, m_Direction);
+		m_ForwardDirection = glm::rotate(q, m_ForwardDirection);	
 
 		moved = true;
 	}
 
-	/* - Chaching old values if not moving - */
+	/* - caching old values if not moved - */
 
 	if (moved)
 	{
