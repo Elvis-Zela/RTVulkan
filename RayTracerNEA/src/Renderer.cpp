@@ -1,31 +1,12 @@
 #include "Renderer.h"
 
 #include "Walnut/Random.h"
-#include "Utilities.h"
 
-void Renderer::Render(const Camera& camera)
-{
-	Ray ray;
-	ray.Origin = camera.GetPosition();
+#include "Camera.h"
+#include "Ray.h"
+#include "Hittables.h"
 
-	for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++)
-	{
-		for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++)
-		{
-			/* ERROR: Exception Thrown: Read Access Violation */
-			/* -- Cause: GetRayDirections() -- */
-			/* - Problem caused by Render() in RTApp.cpp - */
-			ray.Direction = camera.GetRayDirections()[x + y * m_FinalImage->GetWidth()];
-			glm::vec4 color = TraceRay(ray);
-			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));
-			m_ImageDataBuffer[x + y * m_FinalImage->GetWidth()] = Utilities::ToRGBA(color);
-		}
-	}
-
-	m_FinalImage->SetData(m_ImageDataBuffer);
-}
-
-void Renderer::Resizing(uint32_t width, uint32_t height)
+void Renderer::IfResizing(uint32_t width, uint32_t height)
 {
 	if (m_FinalImage)
 	{
@@ -46,44 +27,36 @@ void Renderer::Resizing(uint32_t width, uint32_t height)
 	m_ImageDataBuffer = new uint32_t[width * height];
 }
 
-/* - Trace Ray Not Finished - */
-/* - Displaying simple sphere - */
-glm::vec4 Renderer::TraceRay(const Ray& ray)
+void Renderer::Render(const Hittables& world, const Camera& camera)
 {
-	float radius = 0.5f;
-	// rayDirection = glm::normalize(rayDirection);
+	Ray ray;
+	ray.SetRayOrigin(camera.GetCameraPosition());
 
-	// (bx^2 + by^2)t^2 + (2(axbx + ayby))t + (ax^2 + ay^2 - r^2) = 0
-	// where
-	// a = ray origin
-	// b = ray direction
-	// r = radius
-	// t = hit distance
+	for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++)
+	{
+		for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++)
+		{
+			ray.SetRayDirection(camera.GetRayDirections()[x + y * m_FinalImage->GetWidth()]);
+			glm::vec4 color = TraceRay(ray, world);
+			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));
+			m_ImageDataBuffer[x + y * m_FinalImage->GetWidth()] = Utilities::ToRGBA(color);
+		}
+	}
 
-	float a = glm::dot(ray.Direction, ray.Direction);
-	float b = 2.0f * glm::dot(ray.Origin, ray.Direction);
-	float c = glm::dot(ray.Origin, ray.Origin) - radius * radius;
+	m_FinalImage->SetData(m_ImageDataBuffer);
+}
 
-	// Quadratic forumula discriminant:
-	// b^2 - 4ac
+glm::vec4 Renderer::TraceRay(const Ray& ray, const Hittables& world)
+{
+	hit_record rec;
 
-	float discriminant = b * b - 4.0f * a * c;
-	if (discriminant < 0.0f)
-		return glm::vec4(0, 0, 0, 1);
-
-	// Quadratic formula:
-	// (-b +- sqrt(discriminant)) / 2a
-
-	float closestT = (-b - glm::sqrt(discriminant)) / (2.0f * a);
-	float t0 = (-b + glm::sqrt(discriminant)) / (2.0f * a); // Second hit distance (currently unused)
-
-	glm::vec3 hitPoint = ray.Origin + ray.Direction * closestT;
-	glm::vec3 normal = glm::normalize(hitPoint);
+	if (!world.hit(ray, NEAR_EPSILON, FLOAT_LARGE, rec))
+		return glm::vec4(BASE_SKY_COLOUR, 1.0f);
 
 	glm::vec3 lightDir = glm::normalize(glm::vec3(-1, -1, -1));
-	float lightIntensity = glm::max(glm::dot(normal, -lightDir), 0.0f); // == cos(angle)
+	float lightIntensity = glm::max(glm::dot(rec.hit_normal, -lightDir), 0.0f); // == cos(angle)
 
-	glm::vec3 sphereColor(1, 0, 1);
-	sphereColor *= lightIntensity;
-	return glm::vec4(sphereColor, 1.0f);
+	glm::vec3 objectColor = rec.hit_albedo;
+	objectColor *= lightIntensity;
+	return glm::vec4(objectColor, 1.0f);
 }
