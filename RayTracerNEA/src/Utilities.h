@@ -2,6 +2,13 @@
 
 #include "Walnut/Random.h"
 
+#define PI 3.1415926535897932385
+
+#define NEAR_EPSILON	std::numeric_limits<float>::min()
+#define FLOAT_LARGE	1e+30
+
+#define BASE_SKY_COLOUR glm::vec3{ 0.15f, 0.2f, 0.9f }
+
 namespace Utilities
 {
 	static uint32_t ToRGBA(const glm::vec4& color)
@@ -21,3 +28,4 @@ namespace Utilities
 		return RGBAColor;
 	}
 }
+
