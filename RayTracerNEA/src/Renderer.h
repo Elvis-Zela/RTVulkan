@@ -18,6 +18,7 @@ public:
 	Renderer() = default;
 
 	void Render(const Hittables& world, const Camera& camera);
+	void SampleRender(const Hittables& world, const Camera& camera, const int sampleSize);
 	void IfResizing(uint32_t width, uint32_t height);
 
 	std::shared_ptr<Walnut::Image> GetFinalImage() const { return m_FinalImage; }
