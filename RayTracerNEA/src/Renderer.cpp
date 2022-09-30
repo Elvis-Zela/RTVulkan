@@ -60,3 +60,41 @@ glm::vec4 Renderer::TraceRay(const Ray& ray, const Hittables& world)
 	objectColor *= lightIntensity;
 	return glm::vec4(objectColor, 1.0f);
 }
+
+/* - Uses multiple rays per sample to average out the colour of a pixel, results in smoother shapes (anti-aliasing), but blurrier - */
+/* - Currently very ineficient - */
+
+void Renderer::SampleRender(const Hittables& world, const Camera& camera, const int sampleSize)
+{
+	Ray ray;
+	ray.SetRayOrigin(camera.GetCameraPosition());
+
+	for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++)
+	{
+		for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++)
+		{
+			glm::vec4 color(0.0f, 0.0f, 0.0f, 1.0f);
+
+			for (int s = 0; s < sampleSize; ++s)
+			{
+				for (int s2 = 0; s2 < sampleSize; ++s2)
+				{
+					ray.SetRayDirection(camera.GetRayDirections()[(x + s) + (y + s2) * m_FinalImage->GetWidth()]);
+					/* - Add ray colour to a total to get a sum of colour around a pixel - */
+					color += TraceRay(ray, world);
+				}
+			}
+
+			/* - dividing colour by amount of samples to get appropriate colour - */
+
+			float scale = 1.0f / (float)(sampleSize * sampleSize);
+			color *= scale;
+			color.a = 1.0f;
+			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));
+
+			m_ImageDataBuffer[x + y * m_FinalImage->GetWidth()] = Utilities::ToRGBA(color);
+		}
+	}
+
+	m_FinalImage->SetData(m_ImageDataBuffer);
+}
