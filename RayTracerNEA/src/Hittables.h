@@ -6,24 +6,20 @@
 #include "Ray.h"
 
 
-struct hit_record
+
+struct RayPayload
 {
-	glm::vec3 hit_point;
-	glm::vec3 hit_normal;
+	glm::vec3 hitPoint;
+	glm::vec3 hitNormal;
+	glm::vec3 hitAlbedo;		// Hit object intrinsic colour
 
-	bool front_face;		// Is ray coming from inside or outside?
-	float closest_t;		// Holds current closest t value
-
-	glm::vec3 hit_albedo;	// Hit object intrinsic colour
-
-	inline void set_face_normal(const Ray& ray, const glm::vec3& outward_normal) {
-		front_face = glm::dot(ray.GetRayDirection(), outward_normal) < 0;
-		hit_normal = front_face ? outward_normal : -outward_normal;
-	}
+	float closestT;			// Holds current closest t value
+	int objectSceneIndex;
 };
 
 class Hittables
 {
 public:
-	virtual bool hit(const Ray& ray, float t_min, float t_max, hit_record& rec) const = 0;
+	virtual bool hit(const Ray& ray, float t_min, float t_max, RayPayload& rec) const = 0;
+	virtual void ClosestHitShader(const Ray& ray, RayPayload& rec) const = 0;
 };
