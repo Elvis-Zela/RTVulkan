@@ -1,5 +1,5 @@
 #pragma once
-#include "Utilities.h"
+
 #include <glm/glm.hpp>
 
 #include "Hittables.h"
@@ -14,7 +14,8 @@ public:
 	~Sphere();
 
 	/* - Methods - */
-	virtual bool hit(const Ray& ray, float t_min, float t_max, hit_record& rec) const override;
+	virtual bool hit(const Ray& ray, float t_min, float t_max, RayPayload& rec) const override;
+	virtual void ClosestHitShader(const Ray& ray, RayPayload& rec) const override;
 
 private:
 	/* - Attributes - */
