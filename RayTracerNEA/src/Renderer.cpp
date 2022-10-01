@@ -2,10 +2,15 @@
 
 #include "Walnut/Random.h"
 
+#include <memory>
+
 #include "Camera.h"
 #include "Ray.h"
 #include "Hittables.h"
 
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------- Resizing Option ------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
 void Renderer::IfResizing(uint32_t width, uint32_t height)
 {
 	if (m_FinalImage)
@@ -26,18 +31,23 @@ void Renderer::IfResizing(uint32_t width, uint32_t height)
 	delete[] m_ImageDataBuffer;
 	m_ImageDataBuffer = new uint32_t[width * height];
 }
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
 
+
+/* ------------------------------------------------------------------------------------------------ */
+/* ----------------------------------- Main Render Function --------------------------------------- */
+/* ------------------------------------------------------------------------------------------------ */
 void Renderer::Render(const Hittables& world, const Camera& camera)
 {
-	Ray ray;
-	ray.SetRayOrigin(camera.GetCameraPosition());
+	m_Camera = &camera;
+	m_World  = &world;
 
 	for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++)
 	{
 		for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++)
 		{
-			ray.SetRayDirection(camera.GetRayDirections()[x + y * m_FinalImage->GetWidth()]);
-			glm::vec4 color = TraceRay(ray, world);
+			glm::vec4 color = RayGeneration(x, y);
 			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));
 			m_ImageDataBuffer[x + y * m_FinalImage->GetWidth()] = Utilities::ToRGBA(color);
 		}
@@ -45,56 +55,83 @@ void Renderer::Render(const Hittables& world, const Camera& camera)
 
 	m_FinalImage->SetData(m_ImageDataBuffer);
 }
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
 
-glm::vec4 Renderer::TraceRay(const Ray& ray, const Hittables& world)
+
+/* ------------------------------------------------------------------------------------------------ */
+/* ----------------------------------- Ray Generation Shader -------------------------------------- */
+/* ------------------------------------------------------------------------------------------------ */
+glm::vec4 Renderer::RayGeneration(uint32_t x, uint32_t y)
 {
-	hit_record rec;
-
-	if (!world.hit(ray, NEAR_EPSILON, FLOAT_LARGE, rec))
-		return glm::vec4(BASE_SKY_COLOUR, 1.0f);
-
-	glm::vec3 lightDir = glm::normalize(glm::vec3(-1, -1, -1));
-	float lightIntensity = glm::max(glm::dot(rec.hit_normal, -lightDir), 0.0f); // == cos(angle)
-
-	glm::vec3 objectColor = rec.hit_albedo;
-	objectColor *= lightIntensity;
-	return glm::vec4(objectColor, 1.0f);
-}
-
-/* - Uses multiple rays per sample to average out the colour of a pixel, results in smoother shapes (anti-aliasing), but blurrier - */
-/* - Currently very ineficient - */
-
-void Renderer::SampleRender(const Hittables& world, const Camera& camera, const int sampleSize)
-{
+	/* - declaring varaibles - */
 	Ray ray;
-	ray.SetRayOrigin(camera.GetCameraPosition());
+	RayPayload payload;
+	glm::vec3 colour(0.0f);
 
-	for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++)
+	/* - Ray should originate from the camera - */
+	ray.SetRayOrigin(m_Camera->GetCameraPosition());
+	ray.SetRayDirection(m_Camera->GetRayDirections()[x + y * m_FinalImage->GetWidth()]);
+
+	/* - Temporary mesure to say how much the light from / colour from a bounce affects object colour - */
+	float colourContribution = 1.0f;
+	for (int i = 0; i < bounceDepth; i++)
 	{
-		for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++)
+		TraceRay(ray, payload);
+		if (payload.closestT < 0.0f)
 		{
-			glm::vec4 color(0.0f, 0.0f, 0.0f, 1.0f);
-
-			for (int s = 0; s < sampleSize; ++s)
-			{
-				for (int s2 = 0; s2 < sampleSize; ++s2)
-				{
-					ray.SetRayDirection(camera.GetRayDirections()[(x + s) + (y + s2) * m_FinalImage->GetWidth()]);
-					/* - Add ray colour to a total to get a sum of colour around a pixel - */
-					color += TraceRay(ray, world);
-				}
-			}
-
-			/* - dividing colour by amount of samples to get appropriate colour - */
-
-			float scale = 1.0f / (float)(sampleSize * sampleSize);
-			color *= scale;
-			color.a = 1.0f;
-			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));
-
-			m_ImageDataBuffer[x + y * m_FinalImage->GetWidth()] = Utilities::ToRGBA(color);
+			colour += BASE_SKY_COLOUR * colourContribution;
+			break;
 		}
+
+		/* - Retrieving the hit object's albedo*/
+		glm::vec3 objectColor = payload.hitAlbedo;
+
+		/* - simple lighting hack to get shading for the moment - */
+		glm::vec3 lightDir = glm::normalize(glm::vec3(-1, -1, -1));
+		/* - Sets a light direction and depending on the angle made by the hit normal the direction we decide how lit it is - */
+		float lightIntensity = glm::max(glm::dot(payload.hitNormal, -lightDir), 0.0f); // == cos(angle)
+		objectColor *= lightIntensity;
+
+		payload.hitAlbedo = objectColor;
+
+		colour = payload.hitAlbedo * colourContribution;
+		/* - Decreasing colour contribution for next bounces - */
+		colourContribution *= 0.75f;
+
+		ray.SetRayOrigin(payload.hitPoint + payload.hitNormal * NEAR_EPSILON);
+		ray.SetRayDirection(glm::reflect(ray.GetRayDirection(), payload.hitNormal));
 	}
 
-	m_FinalImage->SetData(m_ImageDataBuffer);
+	return glm::vec4(colour, 1.0f);
 }
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
+
+
+/* ------------------------------------------------------------------------------------------------ */
+/* --------------------------------- Tracing Ray Into The Scene ----------------------------------- */
+/* ------------------------------------------------------------------------------------------------ */
+void Renderer::TraceRay(const Ray& ray, RayPayload& payload)
+{
+	/* - If the world hit function doesn't return a value then no geometry was hit, call miss shader - */
+	if (!m_World->hit(ray, NEAR_EPSILON, FLOAT_LARGE, payload))
+	{
+		MissShader(ray, payload);
+		return;
+	}
+
+	m_World->ClosestHitShader(ray, payload);
+}
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------------------------------------ */
+/* ---------------------------------------- Miss Shader ------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------ */
+void Renderer::MissShader(const Ray& ray, RayPayload& payload)
+{
+	payload.closestT = -1.0f;
+}
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
