@@ -4,13 +4,14 @@
 
 #define PI 3.1415926535897932385
 
-#define NEAR_EPSILON	std::numeric_limits<float>::min()
-#define FLOAT_LARGE	1e+30
+#define NEAR_EPSILON	1e-3f
+#define FLOAT_LARGE	1e+30f
 
 #define BASE_SKY_COLOUR glm::vec3{ 0.15f, 0.2f, 0.9f }
 
 namespace Utilities
 {
+
 	static uint32_t ToRGBA(const glm::vec4& color)
 	{
 		/* - Red, Green, Blue, Alpha channels - */
@@ -27,5 +28,6 @@ namespace Utilities
 		uint32_t RGBAColor = (a << 24) | (b << 16) | (g << 8) | r;
 		return RGBAColor;
 	}
+
 }
 
