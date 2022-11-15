@@ -66,9 +66,9 @@ void Camera::RecalculateRayDirections()
 			/* - mapped between: -1 -> 1 - */
 			coord = coord * 2.0f - 1.0f; 
 
-			/* - Projective Space coordinates (x, y, z, w) - */
+			/* - Clip Space coordinates (x, y, z, w) - */
 			glm::vec4 target = m_InverseProjectionM * glm::vec4(coord.x, coord.y, 1, 1);
-			/* - mapping from projective space to world coordinates (x, y, z) - */
+			/* - mapping from Clip space to Normalized Device Coordinates NDC (x, y, z) - */
 			glm::vec3 rayDirection;
 
 			if(target.w == 0)
