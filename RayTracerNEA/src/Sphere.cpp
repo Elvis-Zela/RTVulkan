@@ -5,8 +5,8 @@
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------- Sphere Constructors -------------------------------------- */
 /* ------------------------------------------------------------------------------------------------ */
-Sphere::Sphere(glm::vec3 center, float r, glm::vec3 albedo)
-	: m_Center(center), m_Radius(r), m_Albedo(albedo)
+Sphere::Sphere(glm::vec3 center, float r, int matIndex)
+	: m_Center(center), m_Radius(r), m_matIndex(matIndex)
 {}
 
 Sphere::~Sphere() {}
@@ -20,10 +20,10 @@ Sphere::~Sphere() {}
 bool Sphere::hit(const Ray& ray, float t_min, float t_max, RayPayload& rec) const
 {
 	/* - solves vector equation of a circle to see if a ray has hit it - */
-	glm::vec3 originToCenter = ray.GetRayOrigin() - m_Center;
+	glm::vec3 centerToOrigin = ray.GetRayOrigin() - m_Center;
 	auto a = glm::dot(ray.GetRayDirection(), ray.GetRayDirection());
-	auto halfB = glm::dot(originToCenter, ray.GetRayDirection());
-	auto c = glm::dot(originToCenter, originToCenter) - ( m_Radius * m_Radius );
+	auto halfB = glm::dot(centerToOrigin, ray.GetRayDirection());
+	auto c = glm::dot(centerToOrigin, centerToOrigin) - ( m_Radius * m_Radius );
 
 	/* - If discriminant is less than 0 no real solution - */
 	auto discriminant = ( halfB * halfB ) - ( a * c );
@@ -61,8 +61,6 @@ void Sphere::ClosestHitShader(const Ray& ray, RayPayload& rec) const
 	/* - Storing the normal in the scene direction - */
 	bool faceNoraml = glm::dot(outwardNormal, ray.GetRayDirection()) < 0;
 	rec.hitNormal = faceNoraml ? outwardNormal : -outwardNormal;
-
-	rec.hitAlbedo = m_Albedo;
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
