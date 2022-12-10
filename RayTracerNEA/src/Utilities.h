@@ -5,9 +5,10 @@
 #define PI 3.1415926535897932385
 
 #define NEAR_EPSILON	1e-3f
-#define FLOAT_LARGE	1e+30f
+#define FLOAT_LARGE		1e+30f
 
-#define BASE_SKY_COLOUR glm::vec3{ 0.15f, 0.2f, 0.9f }
+#define BASE_SKY_COLOUR glm::vec3{ 0.0189f, 0.294f, 0.630f }
+#define BLACK			glm::vec3{  0.0f, 0.0f, 0.0f }
 
 namespace Utilities
 {
@@ -29,5 +30,9 @@ namespace Utilities
 		return RGBAColor;
 	}
 
+	static bool nearZero(glm::vec3 v) {
+		const auto s = 1e-8;
+		return ((fabs(v.x) < 0) && (fabs(v.y) < s) && (fabs(v.z) < s));
+	}
 }
 
