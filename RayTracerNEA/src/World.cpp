@@ -6,13 +6,13 @@
 /* ------------------------------------------------------------------------------------------------ */
 World::World(shared_ptr<Hittables> object)
 {
-	Add(object);
+	AddObject(object);
 }
 
 World::~World()
 {
 	/* - Clears World - */
-	m_Scene.clear(); 
+	m_SceneGeometry.clear(); 
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
@@ -21,9 +21,16 @@ World::~World()
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------ Add Objects To World -------------------------------------- */
 /* ------------------------------------------------------------------------------------------------ */
-void World::Add(shared_ptr<Hittables> object)
+int World::AddObject(shared_ptr<Hittables> object)
 {
-	m_Scene.push_back(object);
+	m_SceneGeometry.push_back(object);
+	return m_SceneGeometry.size() - 1;
+}
+
+int World::AddMaterial(shared_ptr<Material> mat)
+{
+	m_ObjectMaterials.push_back(mat);
+	return m_ObjectMaterials.size() - 1;
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
@@ -39,14 +46,14 @@ bool World::hit(const Ray& ray, float t_min, float t_max, RayPayload& rec) const
 	auto closest_so_far = t_max;
 	int objectIndex = 0;
 
-	for (const auto& object : m_Scene)
+	for (const auto& object : m_SceneGeometry)
 	{
 		if (object->hit(ray, t_min, closest_so_far, temp_rec))
 		{
 			hit_anything = true;
 			closest_so_far = temp_rec.closestT;
 			rec = temp_rec;
-			rec.objectSceneIndex = objectIndex;
+			rec.objIdx = objectIndex;
 		}
 		objectIndex++;
 	}
@@ -62,7 +69,7 @@ bool World::hit(const Ray& ray, float t_min, float t_max, RayPayload& rec) const
 /* ------------------------------------------------------------------------------------------------ */
 void World::ClosestHitShader(const Ray& ray, RayPayload& rec) const
 {
-	m_Scene[rec.objectSceneIndex]->ClosestHitShader(ray, rec);
+	m_SceneGeometry[rec.objIdx]->ClosestHitShader(ray, rec);
 	
 }
 /* ------------------------------------------------------------------------------------------------ */
