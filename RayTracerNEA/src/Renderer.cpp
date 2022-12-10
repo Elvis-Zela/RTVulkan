@@ -1,12 +1,11 @@
 #include "Renderer.h"
 
-#include "Walnut/Random.h"
-
+#include <vector>
 #include <memory>
 
 #include "Camera.h"
 #include "Ray.h"
-#include "Hittables.h"
+#include "World.h"
 
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------- Resizing Option ------------------------------------------ */
@@ -30,6 +29,9 @@ void Renderer::IfResizing(uint32_t width, uint32_t height)
 
 	delete[] m_ImageDataBuffer;
 	m_ImageDataBuffer = new uint32_t[width * height];
+
+	delete[] m_AccumulationData;
+	m_AccumulationData = new glm::vec4[width * height];
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
@@ -38,22 +40,37 @@ void Renderer::IfResizing(uint32_t width, uint32_t height)
 /* ------------------------------------------------------------------------------------------------ */
 /* ----------------------------------- Main Render Function --------------------------------------- */
 /* ------------------------------------------------------------------------------------------------ */
-void Renderer::Render(const Hittables& world, const Camera& camera)
+void Renderer::Render(const World& world, const Camera& camera)
 {
+	/* - Allows use of the camera and world by all renderer functions without passing them - */
 	m_Camera = &camera;
 	m_World  = &world;
 
+	if (m_FrameIndex == 1)
+		memset(m_AccumulationData, 0, m_FinalImage->GetWidth() * m_FinalImage->GetHeight() * sizeof(glm::vec4));
+
+	/* - Rendering from top to bottom, lef to right - */
 	for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++)
 	{
 		for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++)
 		{
-			glm::vec4 color = RayGeneration(x, y);
-			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));
-			m_ImageDataBuffer[x + y * m_FinalImage->GetWidth()] = Utilities::ToRGBA(color);
+			glm::vec4 colour = RayGeneration(x, y);
+			m_AccumulationData[x + y * m_FinalImage->GetWidth()] += colour;
+
+			colour = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
+			colour /= (float)m_FrameIndex;
+
+			colour = glm::clamp(colour, glm::vec4(0.0f), glm::vec4(1.0f));
+			m_ImageDataBuffer[x + y * m_FinalImage->GetWidth()] = Utilities::ToRGBA(colour);
 		}
 	}
 
 	m_FinalImage->SetData(m_ImageDataBuffer);
+
+	if (m_Settings.Accumulate)
+		m_FrameIndex++;
+	else
+		m_FrameIndex = 1;
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
@@ -77,30 +94,35 @@ glm::vec4 Renderer::RayGeneration(uint32_t x, uint32_t y)
 	float colourContribution = 1.0f;
 	for (int i = 0; i < bounceDepth; i++)
 	{
+		/* - Casts ray to the scene - */
 		TraceRay(ray, payload);
+		/* - If colosest T value is set to a negative value, miss shader was used so all geometry missed - */
 		if (payload.closestT < 0.0f)
 		{
+			/* - Setting miss colour to the background colour x its contribution - */
 			colour += BASE_SKY_COLOUR * colourContribution;
 			break;
 		}
 
-		/* - Retrieving the hit object's albedo*/
-		glm::vec3 objectColor = payload.hitAlbedo;
+		glm::vec3 attenuation;
 
-		/* - simple lighting hack to get shading for the moment - */
-		glm::vec3 lightDir = glm::normalize(glm::vec3(-1, -1, -1));
+		std::shared_ptr<Hittables> obj = m_World->GetObj(payload.objIdx);
+		std::shared_ptr<Material> mat = m_World->GetMat(obj->GetMatIndex());
+
+		if (!mat->Scatter(ray, payload, attenuation, ray))
+			break;
+
+		/* - Hardcoding in a simple light source - */
+		glm::vec3 lightPos{ 10.0f, 25.0f, 15.0f };
+		glm::vec3 lightDir = glm::normalize(payload.hitPoint - lightPos);
+
 		/* - Sets a light direction and depending on the angle made by the hit normal the direction we decide how lit it is - */
 		float lightIntensity = glm::max(glm::dot(payload.hitNormal, -lightDir), 0.0f); // == cos(angle)
-		objectColor *= lightIntensity;
+		attenuation *= lightIntensity; 
+		colour += attenuation * colourContribution;
 
-		payload.hitAlbedo = objectColor;
+		colourContribution *= 0.35f;
 
-		colour = payload.hitAlbedo * colourContribution;
-		/* - Decreasing colour contribution for next bounces - */
-		colourContribution *= 0.75f;
-
-		ray.SetRayOrigin(payload.hitPoint + payload.hitNormal * NEAR_EPSILON);
-		ray.SetRayDirection(glm::reflect(ray.GetRayDirection(), payload.hitNormal));
 	}
 
 	return glm::vec4(colour, 1.0f);
@@ -120,17 +142,19 @@ void Renderer::TraceRay(const Ray& ray, RayPayload& payload)
 		MissShader(ray, payload);
 		return;
 	}
-
-	m_World->ClosestHitShader(ray, payload);
+	/* - calling the object's closest hit shader - */
+	m_World->m_SceneGeometry[payload.objIdx]->ClosestHitShader(ray, payload);
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
+
 
 /* ------------------------------------------------------------------------------------------------ */
 /* ---------------------------------------- Miss Shader ------------------------------------------- */
 /* ------------------------------------------------------------------------------------------------ */
 void Renderer::MissShader(const Ray& ray, RayPayload& payload)
 {
+	/* - Setting closest T value found as negative to easily check if ray missed - */
 	payload.closestT = -1.0f;
 }
 /* ------------------------------------------------------------------------------------------------ */
