@@ -10,6 +10,7 @@
 #include "World.h"
 #include "Camera.h"
 #include "Renderer.h"
+#include "Materials.h"
 
 
 using namespace Walnut;
@@ -19,26 +20,36 @@ using namespace Walnut;
 /* ------------------------------------------------------------------------------------------------ */
 void InitWorld(World& scene)
 {
-	/* - Creates simple Scene with 2 spheres - */
-	glm::vec3 pos1(-1.0f, 1.0f, -1.0f);
-	glm::vec3 alb1(1.0f, 1.0f, 0.0f);
+	/* - Creates simple Scene spheres - */
+	int m_idx;	//Index to appropriate material
+
+	glm::vec3 pos1(-1.0f, 0.5f, -1.0f);
+	glm::vec3 alb1(0.440f, 0.106f, 0.0396f);
 	float	  rad1 = 1.0f;
-	Sphere sphere1(pos1, rad1, alb1);
+	float	  rough1 = 0.38f;
+	std::shared_ptr<RoughMat> roughMat1 = std::make_shared<RoughMat>(alb1, rough1);
+	m_idx = scene.AddMaterial(roughMat1);
+	Sphere sphere1(pos1, rad1, m_idx);
 
-	glm::vec3 pos2(2.0f, 2.0f, -3.0f);
-	glm::vec3 alb2(0.0f, 0.0f, 1.0f);
+	glm::vec3 pos2(2.0f, 1.5f, -3.0f);
+	glm::vec3 alb2(0.845f, 0.0837f, 0.930f);
 	float	  rad2 = 2.0f;
-	Sphere sphere2(pos2, rad2, alb2);
+	float	  fuzz1 = 0.15f;
+	std::shared_ptr<Metal> metalMat1 = std::make_shared<Metal>(alb2, fuzz1);
+	m_idx = scene.AddMaterial(metalMat1);
+	Sphere sphere2(pos2, rad2, m_idx);
 
-	/* - 3rd sphere is the plane - */
-	glm::vec3 pos3(0.0f, -1000.0f, 0.0f);
-	glm::vec3 alb3(0.25f, 1.0f, 0.1f);
-	float	  rad3 = 1000.0f;
-	Sphere sphere3(pos3, rad3, alb3);
+	/* - Last sphere is the plane - */
+	glm::vec3 posP(0.0f, -500.5f, 0.0f);
+	glm::vec3 albP(0.154f, 0.470f, 0.0296f);
+	float	  radP = 500.0f;
+	std::shared_ptr<Lambertian> planeMat = std::make_shared<Lambertian>(albP);
+	m_idx = scene.AddMaterial(planeMat);
+	Sphere sphereP(posP, radP, m_idx);
 
-	scene.Add(std::make_shared<Sphere>(sphere1));
-	scene.Add(std::make_shared<Sphere>(sphere2));
-	scene.Add(std::make_shared<Sphere>(sphere3));
+	scene.AddObject(std::make_shared<Sphere>(sphere1));
+	scene.AddObject(std::make_shared<Sphere>(sphere2));
+	scene.AddObject(std::make_shared<Sphere>(sphereP));
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
@@ -57,12 +68,19 @@ public:
 	}
 	virtual void OnUpdate(float ts) override
 	{
-		m_Camera.Move(ts);
+		if (m_Camera.Move(ts))
+			m_Renderer.ResetFrameIndex();
 	}
 
 	virtual void OnUIRender() override
 	{
 		ImGui::Begin("Debug");
+
+		ImGui::Checkbox("Accumulate", &m_Renderer.GetSettings().Accumulate);
+
+		if (ImGui::Button("Reset"))
+			m_Renderer.ResetFrameIndex();
+
 		ImGui::Text("Last render: %.3fms", m_LastRenderTime);
 		ImGui::Text("FPS: %.3f", 1000.0f / m_LastRenderTime);
 		ImGui::End();
@@ -71,7 +89,26 @@ public:
 		ImGui::Begin("Options");
 		ImGui::DragFloat("Mouse Sensitivity", &m_Camera.MouseSensitivity, 0.005f, 0.2f, 0.5f);
 		ImGui::DragFloat("Camera Fly Speed", &m_Camera.CameraFlySpeed, 0.1f, 1.5f, 10.0f);
-		ImGui::SliderInt("Bounce Depth", &m_Renderer.bounceDepth, 1, 5);
+		ImGui::SliderInt("Bounce Depth", &m_Renderer.bounceDepth, 1, 10);
+		
+		/* - Allows User to Change Object Settings - */
+		/* - Currently Disabled - */
+		/*
+		for (size_t i = 0; i < m_World.SceneSize(); i++)
+		{
+			ImGui::PushID(i);
+
+			std::shared_ptr<Hittables> obj = m_World.GetObj(i);
+			std::shared_ptr<Material> mat = m_World.GetMat(obj->GetMatIndex());
+
+			ImGui::ColorEdit3("Albedo", glm::value_ptr(*(mat->GetAlbedo())));
+
+			ImGui::Separator();
+			ImGui::PopID();
+		}
+		*/
+		/* --------------------------------------------------------------------------------- */
+
 		ImGui::End();
 
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -84,7 +121,7 @@ public:
 
 		if (image)
 			ImGui::Image(image->GetDescriptorSet(), { (float)image->GetWidth(), (float)image->GetHeight() },
-				ImVec2(0, 1), ImVec2(1, 0));
+			  ImVec2(0, 1), ImVec2(1, 0));
 
 		ImGui::End();
 		ImGui::PopStyleVar();
@@ -96,8 +133,10 @@ public:
 	{
 		Timer timer;
 
+		if (m_Camera.ViewPortResized(m_ViewportWidth, m_ViewportHeight))
+				m_Renderer.ResetFrameIndex();
+
 		m_Renderer.IfResizing(m_ViewportWidth, m_ViewportHeight);
-		m_Camera.ViewPortResized(m_ViewportWidth, m_ViewportHeight);
 		m_Renderer.Render(m_World, m_Camera);
 
 		m_LastRenderTime = timer.ElapsedMillis();
