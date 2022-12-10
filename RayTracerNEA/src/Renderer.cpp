@@ -92,7 +92,7 @@ glm::vec4 Renderer::RayGeneration(uint32_t x, uint32_t y)
 
 	/* - Temporary mesure to say how much the light from / colour from a bounce affects object colour - */
 	float colourContribution = 1.0f;
-	for (int i = 0; i < bounceDepth; i++)
+	for (int i = 0; i < GetSettings().bounceDepth; i++)
 	{
 		/* - Casts ray to the scene - */
 		TraceRay(ray, payload);
