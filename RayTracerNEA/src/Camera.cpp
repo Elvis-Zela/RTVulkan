@@ -6,11 +6,15 @@
 
 #include "Walnut/Input/Input.h"
 
+#include "Utilities.h"
+
 #define CAMERA_ROTATION_SPEED		0.3f
 
 using namespace Walnut;
 
-/* - Camera Constructor - */
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------- Camera Constructors -------------------------------------- */
+/* ------------------------------------------------------------------------------------------------ */
 Camera::Camera() 
 {
 	m_CameraPosition = { 0.0f, 0.5f, 8.0f };
@@ -24,21 +28,32 @@ Camera::Camera(glm::vec3 pos, glm::vec3 lookat)
 
 Camera::~Camera()
 {}
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
 
-/* - In case viewport window has been resized - */
-/* - Also used at start up to initialise attributes - */
-void Camera::IfResizing(uint32_t width, uint32_t height)
+
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------- Resizing Options ----------------------------------------- */
+/* ------------------------------------------------------------------------------------------------ */
+bool Camera::ViewPortResized(uint32_t width, uint32_t height)
 {
 	if (width == m_ViewportWidth && height == m_ViewportHeight)
-		return;
+		return false;
 
 	m_ViewportWidth = width;
 	m_ViewportHeight = height;
 
 	RecalculateProjectionM();
 	RecalculateRayDirections();
-}
 
+	return true;
+}
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------------------------------------ */
+/* ---------------------------------- Recalculating Matrices -------------------------------------- */
+/* ------------------------------------------------------------------------------------------------ */
 void Camera::RecalculateProjectionM()
 {
 	m_ProjectionM = glm::perspectiveFov(glm::radians(m_vFOV), (float)m_ViewportWidth, (float)m_ViewportHeight, m_Near, m_Far);
@@ -66,9 +81,9 @@ void Camera::RecalculateRayDirections()
 			/* - mapped between: -1 -> 1 - */
 			coord = coord * 2.0f - 1.0f; 
 
-			/* - Clip Space coordinates (x, y, z, w) - */
+			/* - Projective Space coordinates (x, y, z, w) - */
 			glm::vec4 target = m_InverseProjectionM * glm::vec4(coord.x, coord.y, 1, 1);
-			/* - mapping from Clip space to Normalized Device Coordinates NDC (x, y, z) - */
+			/* - mapping from projective space to world coordinates (x, y, z) - */
 			glm::vec3 rayDirection;
 
 			if(target.w == 0)
@@ -80,8 +95,14 @@ void Camera::RecalculateRayDirections()
 		}
 	}
 }
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
 
-void Camera::Update(float ts)
+
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------- Camera Movement ------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
+bool Camera::Move(float ts)
 {
 	glm::vec2 mousePos = Input::GetMousePosition();
 	/* - amount that the mouse has moved from previous pos - */
@@ -92,7 +113,7 @@ void Camera::Update(float ts)
 	if (!Input::IsMouseButtonDown(MouseButton::Right))
 	{
 		Input::SetCursorMode(CursorMode::Normal);
-		return;
+		return false;
 	}
 
 	/* - Locks Cursor to the boudaries of the window and hides it, only if RMB is down - */
@@ -139,7 +160,7 @@ void Camera::Update(float ts)
 	/* - Camera rotations with mouse - */
 	if (displacement.x != 0.0f || displacement.y != 0.0f)
 	{
-		float pitch 	= displacement.y * CAMERA_ROTATION_SPEED;
+		float pitch = displacement.y * CAMERA_ROTATION_SPEED;
 		float yaw	= displacement.x * CAMERA_ROTATION_SPEED;
 
 		/* - rotation quaternion - */
@@ -159,4 +180,8 @@ void Camera::Update(float ts)
 		RecalculateViewM();
 		RecalculateRayDirections();
 	}
+
+	return moved;
 }
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
