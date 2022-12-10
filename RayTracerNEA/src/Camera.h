@@ -18,8 +18,8 @@ public:
 	Camera(glm::vec3 pos, glm::vec3 lookat);
 	~Camera();
 
-	void Update(float ts);
-	void IfResizing(uint32_t width, uint32_t height);
+	bool Move(float ts);
+	bool ViewPortResized(uint32_t width, uint32_t height);
 
 	/* - Get View and Projection Matrices - */
 	const glm::mat4& GetProjectionM() const			{ return m_ProjectionM; }
