@@ -5,8 +5,8 @@
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------- Sphere Constructors -------------------------------------- */
 /* ------------------------------------------------------------------------------------------------ */
-Sphere::Sphere(glm::vec3 center, float r, int matIndex)
-	: m_Center(center), m_Radius(r), m_matIndex(matIndex)
+Sphere::Sphere(Material material, glm::vec3 center, float r)
+	: m_Center(center), m_Radius(r), mat(material)
 {}
 
 Sphere::~Sphere() {}
@@ -17,7 +17,7 @@ Sphere::~Sphere() {}
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------- Check If Sphere Hit -------------------------------------- */
 /* ------------------------------------------------------------------------------------------------ */
-bool Sphere::hit(const Ray& ray, float t_min, float t_max, RayPayload& rec) const
+bool Sphere::hit(const Ray& ray, float t_min, float t_max, RayPayload& rec, rayType rt) const
 {
 	/* - solves vector equation of a circle to see if a ray has hit it - */
 	glm::vec3 centerToOrigin = ray.GetRayOrigin() - m_Center;
@@ -48,19 +48,7 @@ bool Sphere::hit(const Ray& ray, float t_min, float t_max, RayPayload& rec) cons
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
 
-/* ------------------------------------------------------------------------------------------------ */
-/* ------------------------------------ Add To Payload If Hit ------------------------------------- */
-/* ------------------------------------------------------------------------------------------------ */
-void Sphere::ClosestHitShader(const Ray& ray, RayPayload& rec) const
+glm::vec3 Sphere::getNormal(const glm::vec3& hitPoint) const
 {
-	/* - Point of intersection - */
-	rec.hitPoint = ray.At(rec.closestT);
-
-	/* - Storing the normal at that point, pointing out of the sphere - */
-	glm::vec3 outwardNormal = (rec.hitPoint - m_Center) / m_Radius;
-	/* - Storing the normal in the scene direction - */
-	bool faceNoraml = glm::dot(outwardNormal, ray.GetRayDirection()) < 0;
-	rec.hitNormal = faceNoraml ? outwardNormal : -outwardNormal;
+	return (hitPoint - m_Center) / m_Radius;
 }
-/* ------------------------------------------------------------------------------------------------ */
-/* ------------------------------------------------------------------------------------------------ */
