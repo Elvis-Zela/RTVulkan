@@ -6,36 +6,28 @@
 #include <vector>
 #include <memory>
 
-#include "Hittables.h"
+#include "Materials.h"
+#include "Ray.h"
+#include "Lights.h"
 
-using std::shared_ptr;
-using std::vector;
-
-class Ray;
-class Material;
-
-class World : public Hittables
+class World
 {
 public:
 	/* - Constructors - */
 	World() {}
-	World(shared_ptr<Hittables> object);
+	World(std::shared_ptr<Sphere> object);
 	~World();
 
 	/* - Adds a new object to the scene - */
-	int AddObject(shared_ptr<Hittables> object);
-	int AddMaterial(shared_ptr<Material> mat);
-	shared_ptr<Material> GetMat(int matIndex) const { return m_ObjectMaterials[matIndex]; }
-	shared_ptr<Hittables> GetObj(int objIndex) const { return m_SceneGeometry[objIndex]; }
+	void AddObject(std::shared_ptr<Sphere> object);
+	void AddLight(std::shared_ptr<Lights> light);
 
 	size_t SceneSize() const { return m_SceneGeometry.size(); }
 
 public:
-	virtual bool hit(const Ray& ray, float t_min, float t_max, RayPayload& rec) const override;
-	virtual void ClosestHitShader(const Ray& ray, RayPayload& rec) const override;
-	virtual int GetMatIndex() const override { return -1; }
+	virtual bool hit(const Ray& ray, float t_min, float t_max, RayPayload& rec, rayType rt = kPrimaryRay) const;
 
 public:
-	std::vector<shared_ptr<Hittables>> m_SceneGeometry;
-	std::vector<shared_ptr<Material>> m_ObjectMaterials;
+	std::vector<std::shared_ptr<Sphere>> m_SceneGeometry;
+	std::vector<std::shared_ptr<Lights>> m_Lights;
 };
