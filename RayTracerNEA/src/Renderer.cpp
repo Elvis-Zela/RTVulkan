@@ -2,10 +2,13 @@
 
 #include <vector>
 #include <memory>
+#include <execution>
 
 #include "Camera.h"
 #include "Ray.h"
 #include "World.h"
+#include "Lights.h"
+#include "Sphere.h"
 
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------- Resizing Option ------------------------------------------ */
@@ -32,6 +35,13 @@ void Renderer::IfResizing(uint32_t width, uint32_t height)
 
 	delete[] m_AccumulationData;
 	m_AccumulationData = new glm::vec4[width * height];
+
+	m_ImgHorizontalIter.resize(width);
+	m_ImgVerticalIter.resize(height);
+	for (uint32_t i = 0; i < width; i++)
+		m_ImgHorizontalIter[i] = i;
+	for (uint32_t i = 0; i < height; i++)
+		m_ImgVerticalIter[i] = i;
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
@@ -48,8 +58,28 @@ void Renderer::Render(const World& world, const Camera& camera)
 
 	if (m_FrameIndex == 1)
 		memset(m_AccumulationData, 0, m_FinalImage->GetWidth() * m_FinalImage->GetHeight() * sizeof(glm::vec4));
+#define MT 1
+#if (MT == 1)
 
-	/* - Rendering from top to bottom, lef to right - */
+	std::for_each(std::execution::par, m_ImgVerticalIter.begin(), m_ImgVerticalIter.end(),
+		[this](uint32_t y)
+		{
+			std::for_each(std::execution::par, m_ImgHorizontalIter.begin(), m_ImgHorizontalIter.end(),
+			[this, y](uint32_t x)
+				{
+					glm::vec4 colour = RayGeneration(x, y);
+					m_AccumulationData[x + y * m_FinalImage->GetWidth()] += colour;
+
+					colour = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
+					colour /= (float)m_FrameIndex;
+
+					colour = glm::clamp(colour, glm::vec4(0.0f), glm::vec4(1.0f));
+					m_ImageDataBuffer[x + y * m_FinalImage->GetWidth()] = Utilities::ToRGBA(colour);
+				});
+		});
+
+#else
+
 	for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++)
 	{
 		for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++)
@@ -64,6 +94,8 @@ void Renderer::Render(const World& world, const Camera& camera)
 			m_ImageDataBuffer[x + y * m_FinalImage->GetWidth()] = Utilities::ToRGBA(colour);
 		}
 	}
+
+#endif
 
 	m_FinalImage->SetData(m_ImageDataBuffer);
 
@@ -84,18 +116,32 @@ glm::vec4 Renderer::RayGeneration(uint32_t x, uint32_t y)
 	/* - declaring varaibles - */
 	Ray ray;
 	RayPayload payload;
-	glm::vec3 colour(0.0f);
+	glm::vec3 finalColour(0.0f);
 
 	/* - Ray should originate from the camera - */
 	ray.SetRayOrigin(m_Camera->GetCameraPosition());
 	ray.SetRayDirection(m_Camera->GetRayDirections()[x + y * m_FinalImage->GetWidth()]);
 
+	finalColour = ComputeColour(ray, payload, 1);
+
+	return glm::vec4(finalColour, 1.0f);
+}
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
+
+glm::vec3 Renderer::ComputeColour(Ray& ray, RayPayload& payload, int depth)
+{
+	if (depth > m_Settings.maxBounceDepth) { return BASE_SKY_COLOUR; }
+	
 	/* - Temporary mesure to say how much the light from / colour from a bounce affects object colour - */
 	float colourContribution = 1.0f;
-	for (int i = 0; i < GetSettings().bounceDepth; i++)
+	glm::vec3 colour(0.0f);
+
+	for (int i = depth; i <= m_Settings.maxBounceDepth; i++)
 	{
 		/* - Casts ray to the scene - */
-		TraceRay(ray, payload);
+		glm::vec3 hitNormal;
+		TraceRay(ray, payload, hitNormal);
 		/* - If colosest T value is set to a negative value, miss shader was used so all geometry missed - */
 		if (payload.closestT < 0.0f)
 		{
@@ -104,37 +150,101 @@ glm::vec4 Renderer::RayGeneration(uint32_t x, uint32_t y)
 			break;
 		}
 
-		glm::vec3 attenuation;
+		Sphere* obj = payload.object;
+		Material mat = obj->mat;
+		glm::vec3 hitPoint = ray.At(payload.closestT);
+		glm::vec3 normal = (glm::dot(hitNormal, ray.GetRayDirection()) < 0) ? hitNormal : -hitNormal;
 
-		std::shared_ptr<Hittables> obj = m_World->GetObj(payload.objIdx);
-		std::shared_ptr<Material> mat = m_World->GetMat(obj->GetMatIndex());
+		glm::vec3 rayDir = ray.GetRayDirection();
+		glm::vec3 attenuation(0.0f);
+		bool Scatter;
 
-		if (!mat->Scatter(ray, payload, attenuation, ray))
+		switch (mat.type)
+		{
+		case kLambertian:
+		{
+			glm::vec3 scatterDirection = hitNormal + Walnut::Random::InUnitSphere();
+
+			if (Utilities::nearZero(scatterDirection))
+				scatterDirection = hitNormal;
+
+			ray = Ray(hitPoint + normal * NEAR_EPSILON, scatterDirection);
+			attenuation = getLighting(mat.Albedo, hitPoint, normal);
+			colour += attenuation * colourContribution;
+		}
+		Scatter = true;
+
+		break;
+
+		case kMetal:
+		{
+			glm::vec3 reflected = glm::reflect(glm::normalize(ray.GetRayDirection()), hitNormal);
+			ray = Ray(hitPoint, reflected + mat.Fuzz * Walnut::Random::InUnitSphere());
+			attenuation = getLighting(mat.Albedo, hitPoint, normal);
+			colour += attenuation * colourContribution;
+		}
+		Scatter = (glm::dot(ray.GetRayDirection(), hitNormal) > 0);
+
+		break;
+
+		case kReflective:
+		{
+			bool outside = glm::dot(rayDir, hitNormal) < 0;
+			glm::vec3 bias = 0.0001f * hitNormal;
+			glm::vec3 reflectionDirection = glm::normalize(reflect(rayDir, hitNormal));
+			glm::vec3 reflectionOrigin = outside ? hitPoint + bias : hitPoint - bias;
+			Ray reflectionRay = Ray(reflectionOrigin, reflectionDirection);
+			glm::vec3 reflectionColour = ComputeColour(reflectionRay, payload, depth + 1);
+			attenuation += reflectionColour;
+			colour += attenuation * colourContribution;
+		}
+		Scatter = true;
+
+		break;
+
+		case kDielectric:
+		{
+			glm::vec3 refractionColour = glm::vec3(0), reflectionColour = glm::vec3(0);
+			float kr = MatUtils::fresnel(rayDir, hitNormal, mat.IndexOfRefraction);
+			bool outside = glm::dot(rayDir, hitNormal) < 0;
+			glm::vec3 bias = NEAR_EPSILON * hitNormal;
+
+			if (kr < 1.0f)
+			{
+				glm::vec3 refractionDirection = MatUtils::refract(rayDir, hitNormal, mat.IndexOfRefraction);
+				glm::vec3 refractionOrigin = outside ? hitPoint - bias : hitPoint + bias;
+				Ray refractionRay = Ray(refractionOrigin, refractionDirection);
+				refractionColour = ComputeColour(refractionRay, payload, depth + 1);
+			}
+
+			glm::vec3 reflectionDirection = MatUtils::reflect(rayDir, hitNormal);
+			glm::vec3 reflectionOrigin = outside ? hitPoint + bias : hitPoint - bias;
+			Ray reflectionRay = Ray(reflectionOrigin, reflectionDirection);
+			reflectionColour = ComputeColour(reflectionRay, payload, depth + 1);
+			attenuation += reflectionColour * kr + refractionColour * (1 - kr);
+			colour += attenuation * colourContribution;
+		}
+			Scatter = true;
 			break;
 
-		/* - Hardcoding in a simple light source - */
-		glm::vec3 lightPos{ 10.0f, 25.0f, 15.0f };
-		glm::vec3 lightDir = glm::normalize(payload.hitPoint - lightPos);
+		default:
+			Scatter = false;
+			break;
+		}
 
-		/* - Sets a light direction and depending on the angle made by the hit normal the direction we decide how lit it is - */
-		float lightIntensity = glm::max(glm::dot(payload.hitNormal, -lightDir), 0.0f); // == cos(angle)
-		attenuation *= lightIntensity; 
-		colour += attenuation * colourContribution;
+		if (!Scatter) break;
 
-		colourContribution *= 0.35f;
+		colourContribution *= 0.3f;
 
 	}
 
-	return glm::vec4(colour, 1.0f);
+	return colour;
 }
-/* ------------------------------------------------------------------------------------------------ */
-/* ------------------------------------------------------------------------------------------------ */
-
 
 /* ------------------------------------------------------------------------------------------------ */
 /* --------------------------------- Tracing Ray Into The Scene ----------------------------------- */
 /* ------------------------------------------------------------------------------------------------ */
-void Renderer::TraceRay(const Ray& ray, RayPayload& payload)
+void Renderer::TraceRay(const Ray& ray, RayPayload& payload, glm::vec3& hitNormal)
 {
 	/* - If the world hit function doesn't return a value then no geometry was hit, call miss shader - */
 	if (!m_World->hit(ray, NEAR_EPSILON, FLOAT_LARGE, payload))
@@ -142,8 +252,8 @@ void Renderer::TraceRay(const Ray& ray, RayPayload& payload)
 		MissShader(ray, payload);
 		return;
 	}
-	/* - calling the object's closest hit shader - */
-	m_World->m_SceneGeometry[payload.objIdx]->ClosestHitShader(ray, payload);
+
+	hitNormal = payload.object->getNormal(ray.At(payload.closestT));
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
@@ -159,3 +269,22 @@ void Renderer::MissShader(const Ray& ray, RayPayload& payload)
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
+
+glm::vec3 Renderer::getLighting(const glm::vec3& albedo, const glm::vec3& hitPoint, const glm::vec3& hitNormal)
+{
+	glm::vec3 lightDir(0.0f);
+	glm::vec3 lightInt(0.0f);
+	glm::vec3 shadedColour(0.0f);
+	float dist;
+	RayPayload pay;
+
+	for (const auto& light : m_World->m_Lights)
+	{
+		light->getShadingDetails(hitPoint, lightDir, lightInt, dist);
+		Ray ray = Ray(hitPoint + hitNormal * NEAR_EPSILON, -lightDir);
+
+		bool vis = !m_World->hit(ray, NEAR_EPSILON, dist, pay, kShadowRay);
+		shadedColour += (float)vis * albedo * lightInt * std::max(0.0f, glm::dot(hitNormal, -lightDir));
+	}
+	return shadedColour;
+}
