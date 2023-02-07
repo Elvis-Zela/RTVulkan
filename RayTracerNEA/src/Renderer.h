@@ -19,7 +19,7 @@ public:
 	struct Settings
 	{
 		bool Accumulate = true;
-		int bounceDepth = 1;
+		int maxBounceDepth = 1;
 	};
 public:
 /* - Constructor - */
@@ -35,9 +35,11 @@ public:
 
 /* - Private Methods - */
 private:
-	glm::vec4  RayGeneration(uint32_t x, uint32_t y);
+	glm::vec4 RayGeneration(uint32_t x, uint32_t y);
 	void MissShader(const Ray& ray, RayPayload& payload);
-	void TraceRay(const Ray& ray, RayPayload& payload);
+	void TraceRay(const Ray& ray, RayPayload& payload, glm::vec3& hitNormal);
+	glm::vec3 ComputeColour(Ray& ray, RayPayload& payload, int depth);
+	glm::vec3 getLighting(const glm::vec3& albedo, const glm::vec3& hitPoint, const glm::vec3& hitNormal);
 
 /* - Attributes - */
 private:
@@ -46,6 +48,8 @@ private:
 	std::shared_ptr<Walnut::Image> m_FinalImage;
 	uint32_t* m_ImageDataBuffer = nullptr;
 	glm::vec4* m_AccumulationData = nullptr;
+
+	std::vector<uint32_t> m_ImgHorizontalIter, m_ImgVerticalIter;
 
 	uint32_t m_FrameIndex = 1;
 
