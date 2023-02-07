@@ -1,18 +1,21 @@
 #include "World.h"
 #include "Ray.h"
+#include "Materials.h"
+#include "Sphere.h"
 
 /* ------------------------------------------------------------------------------------------------ */
 /* -------------------------------------- World Constructor --------------------------------------- */
 /* ------------------------------------------------------------------------------------------------ */
-World::World(shared_ptr<Hittables> object)
+World::World(std::shared_ptr<Sphere> object)
 {
-	AddObject(object);
+	m_SceneGeometry.push_back(object);
 }
 
 World::~World()
 {
 	/* - Clears World - */
 	m_SceneGeometry.clear(); 
+	m_Lights.clear();
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
@@ -21,16 +24,14 @@ World::~World()
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------ Add Objects To World -------------------------------------- */
 /* ------------------------------------------------------------------------------------------------ */
-int World::AddObject(shared_ptr<Hittables> object)
+void World::AddObject(std::shared_ptr<Sphere> object)
 {
 	m_SceneGeometry.push_back(object);
-	return m_SceneGeometry.size() - 1;
 }
 
-int World::AddMaterial(shared_ptr<Material> mat)
+void World::AddLight(std::shared_ptr<Lights> light)
 {
-	m_ObjectMaterials.push_back(mat);
-	return m_ObjectMaterials.size() - 1;
+	m_Lights.push_back(light);
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
@@ -39,38 +40,24 @@ int World::AddMaterial(shared_ptr<Material> mat)
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------ Check If World Is Hit ------------------------------------- */
 /* ------------------------------------------------------------------------------------------------ */
-bool World::hit(const Ray& ray, float t_min, float t_max, RayPayload& rec) const
+bool World::hit(const Ray& ray, float t_min, float t_max, RayPayload& rec, rayType rt) const
 {
-	RayPayload temp_rec;
-	bool hit_anything = false;
-	auto closest_so_far = t_max;
-	int objectIndex = 0;
+	rec.object = nullptr;
+	auto closestSoFar = t_max;
 
-	for (const auto& object : m_SceneGeometry)
+	for (int i = 0; i < m_SceneGeometry.size(); i ++)
 	{
-		if (object->hit(ray, t_min, closest_so_far, temp_rec))
+		Sphere* object = m_SceneGeometry[i].get();
+
+		if (m_SceneGeometry[i]->hit(ray, t_min, closestSoFar, rec, rt))
 		{
-			hit_anything = true;
-			closest_so_far = temp_rec.closestT;
-			rec = temp_rec;
-			rec.objIdx = objectIndex;
+			if (rt == kShadowRay && object->mat.type == kDielectric) continue;
+			rec.object = m_SceneGeometry[i].get();
+			closestSoFar = rec.closestT;
 		}
-		objectIndex++;
 	}
 
-	return hit_anything;
-}
-/* ------------------------------------------------------------------------------------------------ */
-/* ------------------------------------------------------------------------------------------------ */
-
-
-/* ------------------------------------------------------------------------------------------------ */
-/* ---------------------------------- Calculate Object Hit Values --------------------------------- */
-/* ------------------------------------------------------------------------------------------------ */
-void World::ClosestHitShader(const Ray& ray, RayPayload& rec) const
-{
-	m_SceneGeometry[rec.objIdx]->ClosestHitShader(ray, rec);
-	
+	return (rec.object != nullptr);
 }
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
