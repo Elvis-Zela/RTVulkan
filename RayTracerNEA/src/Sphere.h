@@ -2,26 +2,25 @@
 
 #include <glm/glm.hpp>
 
-#include "Hittables.h"
+#include "Materials.h"
+#include "Ray.h"
 
-class Ray;
-class Material;
-
-class Sphere : public Hittables
+class Sphere
 {
 public:
 	/* - Constructors - */
-	Sphere(glm::vec3 center, float r, int matIndex = 0);
+	Sphere(Material material, glm::vec3 center = glm::vec3(0.0f), float r = 0.5f);
 	~Sphere();
 
 	/* - Methods - */
-	virtual bool hit(const Ray& ray, float t_min, float t_max, RayPayload& rec) const override;
-	virtual void ClosestHitShader(const Ray& ray, RayPayload& rec) const override;
-	virtual int GetMatIndex() const override { return m_matIndex; }
+	bool hit(const Ray& ray, float t_min, float t_max, RayPayload& payload, rayType rt = kPrimaryRay) const;
+	glm::vec3 getNormal(const glm::vec3& hitPoint) const;
 
-private:
+public:
+	Material  mat;
+
+public:
 	/* - Attributes - */
 	glm::vec3 m_Center;
 	float	  m_Radius;
-	int	  m_matIndex;
 };
