@@ -160,7 +160,7 @@ bool Camera::Move(float ts)
 	/* - Camera rotations with mouse - */
 	if (displacement.x != 0.0f || displacement.y != 0.0f)
 	{
-		float pitch = displacement.y * CAMERA_ROTATION_SPEED;
+		float pitch 	= displacement.y * CAMERA_ROTATION_SPEED;
 		float yaw	= displacement.x * CAMERA_ROTATION_SPEED;
 
 		/* - rotation quaternion - */
