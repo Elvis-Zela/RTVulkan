@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 
+enum rayType { kPrimaryRay, kShadowRay };
+
 class Ray
 {
 public:
@@ -22,4 +24,12 @@ public:
 private:
 	glm::vec3 m_Origin{ 0.0f };
 	glm::vec3 m_Direction{ 0.0f };
+};
+
+class Sphere;
+
+struct RayPayload
+{
+	float closestT;			// Holds current closest t value
+	Sphere* object;			// Pointer to object
 };
