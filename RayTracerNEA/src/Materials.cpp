@@ -1,37 +1,50 @@
 #include "Materials.h"
-
-#include "Walnut/Random.h"
-
 #include "Utilities.h"
-#include "Ray.h"
-#include "Hittables.h"
 
-bool RoughMat::Scatter(const Ray& rayIn, const RayPayload& payload, glm::vec3& attenuation, Ray& scattered) const
+float MatUtils::fresnel(const glm::vec3& incidence, const glm::vec3& normal, float indexOfRefraction)
 {
-	glm::vec3 scatterDirection = payload.hitNormal + m_Roughness * Walnut::Random::Vec3(-0.5f, 0.5f);
-	
-	scatterDirection = glm::reflect(rayIn.GetRayDirection(), scatterDirection);
-	scattered = Ray(payload.hitPoint + payload.hitNormal * NEAR_EPSILON, scatterDirection);
-	attenuation = m_Albedo;
-	return true;
+	float kr;
+	float cosI = glm::clamp(dot(incidence, normal), -1.0f, 1.0f);
+
+	float etai, etat;
+	if (cosI < 0) { etai = 1, etat = indexOfRefraction; }
+	else { etai = indexOfRefraction, etat = 1; }
+
+	float sinT = etai / etat * sqrtf(std::max(0.0f, 1 - (cosI * cosI)));
+
+	if (sinT >= 1) { kr = 1; }
+	else
+	{
+		float cosT = sqrtf(std::max(0.0f, 1 - (sinT * sinT)));
+		cosI = fabsf(cosI);
+		float Rs = ((etat * cosI) - (etai * cosT)) / ((etat * cosI) + (etai * cosT));
+		float Rp = ((etat * cosI) - (etai * cosT)) / ((etat * cosI) + (etat * cosT));
+		kr = (Rs * Rs + Rp * Rp) * 0.5f;
+	}
+
+	return kr;
 }
 
-bool Metal::Scatter(const Ray& rayIn, const RayPayload& payload, glm::vec3& attenuation, Ray& scattered) const
+glm::vec3 MatUtils::reflect(const glm::vec3& incidence, const glm::vec3& normal)
 {
-	glm::vec3 reflected = glm::reflect(glm::normalize(rayIn.GetRayDirection()), payload.hitNormal);
-	scattered = Ray(payload.hitPoint, reflected + m_Fuzz * Walnut::Random::InUnitSphere());
-	attenuation = m_Albedo;
-	return (glm::dot(scattered.GetRayDirection(), payload.hitNormal) > 0);
+	return incidence - 2 * glm::dot(incidence, normal) * normal;
 }
 
-bool Lambertian::Scatter(const Ray& rayIn, const RayPayload& payload, glm::vec3& attenuation, Ray& scattered) const
+glm::vec3 MatUtils::refract(const glm::vec3& incidence, const glm::vec3& normal, float indexOfRefraction)
 {
-	glm::vec3 scatterDirection = payload.hitNormal + Walnut::Random::InUnitSphere();
+	float cosI = glm::clamp(dot(incidence, normal), -1.0f, 1.0f);
+	float etai = 1.0f, etat = indexOfRefraction;
+	glm::vec3 n = normal;
 
-	if (Utilities::nearZero(scatterDirection))
-		scatterDirection = payload.hitNormal;
+	if (cosI < 0) { cosI = -cosI; }
+	else
+	{
+		etai = indexOfRefraction;
+		etat = 1.0f;
+		n = -normal;
+	}
 
-	scattered = Ray(payload.hitPoint + payload.hitNormal * NEAR_EPSILON, scatterDirection);
-	attenuation = m_Albedo;
-	return true;
+	float eta = etai / etat;
+	float k = 1 - (eta * eta) * (1 - (cosI * cosI));
+	return k < 0 ? glm::vec3(0) : eta * incidence + (eta * cosI - sqrt(k)) * n;
 }
