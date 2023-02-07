@@ -1,59 +1,25 @@
 #pragma once
 
 #include <glm/glm.hpp>
-#include <vector>
 
-class Ray;
-struct RayPayload;
+enum matType { kReflective, kMetal, kLambertian, kDielectric };
 
-class Material
+struct Material
 {
-public:
-	virtual bool Scatter(const Ray& rayIn, const RayPayload& payload, glm::vec3& attenuation, Ray& scattered) const = 0;
-	virtual glm::vec3 Emitted() const {
-		return glm::vec3(0.0f, 0.0f, 0.0f);
-	}
+	glm::vec3 Albedo = glm::vec3(0.18f);
 
-	virtual glm::vec3* GetAlbedo() = 0;
+	float Roughness = 0.25f;
+	float Fuzz = 0.15f;
+	float IndexOfRefraction = 1.0f;
+
+	matType type = kLambertian;
 };
 
-class RoughMat : public Material
+
+namespace MatUtils 
 {
-public:
-	RoughMat(glm::vec3 alb, float rough) : m_Albedo(alb), m_Roughness(rough) {}
+	float fresnel(const glm::vec3& incidence, const glm::vec3& normal, float indexOfRefraction);
+	glm::vec3 refract(const glm::vec3& incidence, const glm::vec3& normal, float indexOfRefraction);
+	glm::vec3 reflect(const glm::vec3& incidence, const glm::vec3& normal);
+}
 
-public:
-	virtual bool Scatter(const Ray& rayIn, const RayPayload& payload, glm::vec3& attenuation, Ray& scattered) const override;
-	virtual glm::vec3* GetAlbedo() override	{ return &m_Albedo; }
-
-public:
-	glm::vec3 m_Albedo;
-	float	  m_Roughness;
-};
-
-class Metal : public Material
-{
-public:
-	Metal(const glm::vec3 alb, float f) : m_Albedo(alb), m_Fuzz(f < 1 ? f : 1) {}
-
-public:
-	virtual bool Scatter(const Ray& rayIn, const RayPayload& payload, glm::vec3& attenuation, Ray& scattered) const override;
-	virtual glm::vec3* GetAlbedo() override { return &m_Albedo; }
-
-public:
-	glm::vec3 m_Albedo;
-	float	  m_Fuzz;
-};
-
-class Lambertian : public Material
-{
-public:
-	Lambertian(const glm::vec3& alb) : m_Albedo(alb) {}
-
-public:
-	virtual bool Scatter(const Ray& rayIn, const RayPayload& payload, glm::vec3& attenuation, Ray& scattered) const override;
-	virtual glm::vec3* GetAlbedo() override { return &m_Albedo; }
-
-public:
-	glm::vec3 m_Albedo;
-};
