@@ -39,7 +39,7 @@ void InitWorld(World& scene)
 	metalMat1.type = kMetal;
 	Sphere sphere2(metalMat1, pos2, rad2);
 
-	glm::vec3 pos3(1.5f, 0.5f, 5.0f);
+	glm::vec3 pos3(1.5f, 0.5f, 1.6f);
 	float	  rad3 = 1.0f;
 	float	  ior = 1.33f;
 	Material dielectric1;
@@ -63,7 +63,7 @@ void InitWorld(World& scene)
 
 	DistantLight dl1(glm::vec3(1.0f, -2.0f, -1.4f), glm::vec3(0.770f, 0.139f, 0.139f), 0.8f);
 	scene.AddLight(std::make_shared<DistantLight>(dl1));
-
+	
 	DistantLight dl2(glm::vec3(-0.78f, -0.97f, -1.0f), glm::vec3(0.0836f, 0.726f, 0.760f), 0.75f);
 	scene.AddLight(std::make_shared<DistantLight>(dl2));
 
@@ -176,6 +176,12 @@ public:
 				break;
 			}
 
+			if (ImGui::Button("Delete Sphere"))
+			{
+				m_World.RemoveObject(i);
+				m_Renderer.ResetFrameIndex();
+			}
+
 			ImGui::Separator();
 			ImGui::PopID();
 		}
@@ -186,9 +192,9 @@ public:
 
 		if (ImGui::Button("Add Point Light"))
 		{
-			glm::vec3 pos = glm::vec3(0.0f, 2.0f, 0.0f);
+			glm::vec3 pos = glm::vec3(0.0f, 0.5f, 0.0f);
 			glm::vec3 colour = glm::vec3(1.0f);
-			float intensity = 200.0f;
+			float intensity = 45.0f;
 			PointLight light(pos, colour, intensity);
 			m_World.AddLight(std::make_shared<PointLight>(light));
 		}
@@ -212,6 +218,8 @@ public:
 
 			Lights* light = m_World.m_Lights[i].get();
 
+			if (ImGui::ColorEdit3("Colour", glm::value_ptr(light->colour))) m_Renderer.ResetFrameIndex();
+
 			switch (light->type)
 			{
 			case kDistant:
@@ -229,7 +237,11 @@ public:
 				break;
 			}
 
-			if (ImGui::ColorEdit3("Colour", glm::value_ptr(light->colour))) m_Renderer.ResetFrameIndex();
+			if (ImGui::Button("Delete Light"))
+			{
+				m_World.RemoveLight(i);
+				m_Renderer.ResetFrameIndex();
+			}
 
 			ImGui::Separator();
 			ImGui::PopID();
