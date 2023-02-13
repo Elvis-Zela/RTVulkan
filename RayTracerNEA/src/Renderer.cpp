@@ -129,6 +129,9 @@ glm::vec4 Renderer::RayGeneration(uint32_t x, uint32_t y)
 /* ------------------------------------------------------------------------------------------------ */
 /* ------------------------------------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------- Computing Colour ----------------------------------------- */
+/* ------------------------------------------------------------------------------------------------ */
 glm::vec3 Renderer::ComputeColour(Ray& ray, RayPayload& payload, int depth)
 {
 	if (depth > m_Settings.maxBounceDepth) { return BASE_SKY_COLOUR; }
@@ -240,6 +243,8 @@ glm::vec3 Renderer::ComputeColour(Ray& ray, RayPayload& payload, int depth)
 
 	return colour;
 }
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------------------------------------ */
 /* --------------------------------- Tracing Ray Into The Scene ----------------------------------- */
@@ -249,7 +254,7 @@ void Renderer::TraceRay(const Ray& ray, RayPayload& payload, glm::vec3& hitNorma
 	/* - If the world hit function doesn't return a value then no geometry was hit, call miss shader - */
 	if (!m_World->hit(ray, NEAR_EPSILON, FLOAT_LARGE, payload))
 	{
-		MissShader(ray, payload);
+		payload.closestT = -1.0f;
 		return;
 	}
 
@@ -260,16 +265,8 @@ void Renderer::TraceRay(const Ray& ray, RayPayload& payload, glm::vec3& hitNorma
 
 
 /* ------------------------------------------------------------------------------------------------ */
-/* ---------------------------------------- Miss Shader ------------------------------------------- */
+/* --------------------------------- Computing Lighting Details ----------------------------------- */
 /* ------------------------------------------------------------------------------------------------ */
-void Renderer::MissShader(const Ray& ray, RayPayload& payload)
-{
-	/* - Setting closest T value found as negative to easily check if ray missed - */
-	payload.closestT = -1.0f;
-}
-/* ------------------------------------------------------------------------------------------------ */
-/* ------------------------------------------------------------------------------------------------ */
-
 glm::vec3 Renderer::getLighting(const glm::vec3& albedo, const glm::vec3& hitPoint, const glm::vec3& hitNormal)
 {
 	glm::vec3 lightDir(0.0f);
@@ -288,3 +285,5 @@ glm::vec3 Renderer::getLighting(const glm::vec3& albedo, const glm::vec3& hitPoi
 	}
 	return shadedColour;
 }
+/* ------------------------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------ */
