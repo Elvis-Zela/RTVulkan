@@ -36,7 +36,6 @@ public:
 /* - Private Methods - */
 private:
 	glm::vec4 RayGeneration(uint32_t x, uint32_t y);
-	void MissShader(const Ray& ray, RayPayload& payload);
 	void TraceRay(const Ray& ray, RayPayload& payload, glm::vec3& hitNormal);
 	glm::vec3 ComputeColour(Ray& ray, RayPayload& payload, int depth);
 	glm::vec3 getLighting(const glm::vec3& albedo, const glm::vec3& hitPoint, const glm::vec3& hitNormal);
