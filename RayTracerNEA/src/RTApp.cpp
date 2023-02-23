@@ -105,9 +105,15 @@ public:
 
 		/* - Options menu where users can modify mouse sens and camera speed - */
 		ImGui::Begin("Options");
-		ImGui::DragFloat("Mouse Sensitivity", &m_Camera.MouseSensitivity, 0.005f, 0.2f, 0.5f);
-		ImGui::DragFloat("Camera Fly Speed", &m_Camera.CameraFlySpeed, 0.1f, 1.5f, 10.0f);
-		if (ImGui::SliderInt("Bounce Depth", &m_Renderer.GetSettings().maxBounceDepth, 1, 10)) m_Renderer.ResetFrameIndex();
+		if (ImGui::DragFloat("Mouse Sensitivity", &m_Camera.MouseSensitivity, 0.005f, 0.2f, 0.5f))
+		{
+			if (m_Camera.MouseSensitivity < 0.2f || m_Camera.MouseSensitivity > 0.5f) m_Camera.MouseSensitivity = 0.2f;
+		}
+		if (ImGui::DragFloat("Camera Fly Speed", &m_Camera.CameraFlySpeed, 0.1f, 1.5f, 10.0f))
+		{
+			if (m_Camera.CameraFlySpeed < 1.5f || m_Camera.CameraFlySpeed > 10.0f) m_Camera.CameraFlySpeed = 5.0f;
+		}
+		if (ImGui::SliderInt("Bounce Depth", &m_Renderer.GetSettings().maxBounceDepth, 1, 5)) m_Renderer.ResetFrameIndex();
 		ImGui::Checkbox("Accumulate", &m_Renderer.GetSettings().Accumulate);
 
 		ImGui::End();
