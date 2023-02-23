@@ -48,9 +48,9 @@ void InitWorld(World& scene)
 	Sphere sphere3(dielectric1, pos3, rad3);
 
 	/* - Last sphere is the plane - */
-	glm::vec3 posP(0.0f, -500.5f, 0.0f);
+	glm::vec3 posP(0.0f, -1000.5f, 0.0f);
 	glm::vec3 albP(0.154f, 0.470f, 0.0296f);
-	float	  radP = 500.0f;
+	float	  radP = 1000.0f;
 	Material planeMat;
 	planeMat.Albedo = albP;
 	planeMat.type = kLambertian;
@@ -83,6 +83,7 @@ public:
 		InitWorld(m_World);
 
 	}
+
 	virtual void OnUpdate(float ts) override
 	{
 		if (m_Camera.Move(ts))
@@ -114,8 +115,10 @@ public:
 		ImGui::Begin("Sphere Options");
 		/* - Allows User to Change Object Settings - */
 
+		/* - Adds a sphere to the centre of the world - */
 		if (ImGui::Button("Add Sphere"))
 		{
+			/* - default sphere - */
 			Material mat;
 			Sphere obj = Sphere(mat);
 			m_World.AddObject(std::make_shared<Sphere>(obj));
@@ -128,7 +131,7 @@ public:
 		{
 			ImGui::PushID(i);
 
-			Sphere* sphere = m_World.m_SceneGeometry[i].get();
+			Sphere* sphere = m_World.SceneGeometry[i].get();
 			Material mat = sphere->mat;
 
 			if (ImGui::BeginMenu("Material"))
@@ -161,18 +164,30 @@ public:
 			}
 
 			if (ImGui::ColorEdit3("Albedo", glm::value_ptr((sphere->mat.Albedo)))) m_Renderer.ResetFrameIndex();
-			if (ImGui::DragFloat("Radius", &sphere->m_Radius, 0.1f, 0.1f, FLOAT_LARGE)) m_Renderer.ResetFrameIndex();
+			if (ImGui::DragFloat("Radius", &sphere->m_Radius, 0.1f, 0.1f, FLOAT_LARGE))
+			{
+				if (sphere->m_Radius < 0.1f) sphere->m_Radius = 0.1f;
+				m_Renderer.ResetFrameIndex();
+			}
 			if (ImGui::DragFloat3("Center Pos", glm::value_ptr(sphere->m_Center), 0.1f)) m_Renderer.ResetFrameIndex();
 
 
 			switch (sphere->mat.type)
 			{
 			case kMetal:
-				if (ImGui::DragFloat("Metal Fuzz", &sphere->mat.Fuzz, 0.01f, 0.0f, 1.0f)) m_Renderer.ResetFrameIndex();
+				if (ImGui::DragFloat("Metal Fuzz", &sphere->mat.Fuzz, 0.01f, 0.0f, 1.0f)) 
+				{
+					if (sphere->mat.Fuzz < 0.0f || sphere->mat.Fuzz > 1.0f) sphere->mat.Fuzz = 0.0f;
+					m_Renderer.ResetFrameIndex();
+				}
 				break;
 
 			case kDielectric:
-				if (ImGui::DragFloat("IoR", &sphere->mat.IndexOfRefraction, 0.01f, 1.0f, 2.5f)) m_Renderer.ResetFrameIndex();
+				if (ImGui::DragFloat("IoR", &sphere->mat.IndexOfRefraction, 0.01f, 1.0f, 2.5f)) 
+				{
+					if (sphere->mat.IndexOfRefraction < 1.0f || sphere->mat.IndexOfRefraction > 2.5f) sphere->mat.IndexOfRefraction = 1.0f;
+					m_Renderer.ResetFrameIndex();
+				}
 				break;
 			}
 
@@ -212,11 +227,11 @@ public:
 
 		ImGui::Separator();
 
-		for (size_t i = 0; i < m_World.m_Lights.size(); i++)
+		for (size_t i = 0; i < m_World.SceneLights.size(); i++)
 		{
 			ImGui::PushID(i);
 
-			Lights* light = m_World.m_Lights[i].get();
+			Lights* light = m_World.SceneLights[i].get();
 
 			if (ImGui::ColorEdit3("Colour", glm::value_ptr(light->colour))) m_Renderer.ResetFrameIndex();
 
@@ -228,12 +243,20 @@ public:
 					light->direction = glm::normalize(light->direction);
 					m_Renderer.ResetFrameIndex();
 				}
-				if (ImGui::DragFloat("Intensity", &light->intensity, 0.05f, 0.0f, 1.0f)) m_Renderer.ResetFrameIndex();
+				if (ImGui::DragFloat("Intensity", &light->intensity, 0.05f, 0.0f, 1.0f)) 
+				{
+					if (light->intensity < 0.0f || light->intensity > 1.0f) light->intensity = 0.5f;
+					m_Renderer.ResetFrameIndex();
+				}
 				break;
 
 			case kPoint:
 				if (ImGui::DragFloat3("Light Position", glm::value_ptr(light->pos), 0.1f)) m_Renderer.ResetFrameIndex();
-				if (ImGui::DragFloat("Intensity", &light->intensity, 5.0f, 0.0f, FLOAT_LARGE)) m_Renderer.ResetFrameIndex();
+				if (ImGui::DragFloat("Intensity", &light->intensity, 5.0f, 0.0f, FLOAT_LARGE)) 
+				{
+					if (light->intensity < 0.0f ) light->intensity = 0.0f;
+					m_Renderer.ResetFrameIndex();
+				}
 				break;
 			}
 
@@ -281,6 +304,7 @@ public:
 		m_LastRenderTime = timer.ElapsedMillis();
 	}
 
+	/* - Attributes - */
 private:
 	Renderer m_Renderer;
 	Camera m_Camera;
